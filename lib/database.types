@@ -1,0 +1,80 @@
+export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+
+export interface Database {
+  public: {
+    Tables: {
+      caballos: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      propietarios: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      caballerizas: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      historias_clinicas: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      citas: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      inventario: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      facturas: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      eventos: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      veterinarios: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+       servicios: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      clinicas: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+      usuarios: {
+        Row: any
+        Insert: any
+        Update: any
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
+}
