@@ -5,40 +5,35 @@ export async function GET() {
   try {
     const supabase = createServerSupabaseClient()
 
-    // Obtener todos los usuarios
-    const { data: usuarios, error } = await supabase.from("usuarios").select("*")
+    // Check auth users
+    const { data: authUsers, error: authError } = await supabase.auth.admin.listUsers()
+    
+    // Check database users
+    const { data: dbUsers, error: dbError } = await supabase
+      .from("usuarios")
+      .select("*")
+      .eq("email", "humbertjmr96@gmail.com")
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+    if (authError || dbError) {
+      return NextResponse.json({
+        success: false,
+        message: "Error checking users",
+        authError: authError?.message,
+        dbError: dbError?.message
+      }, { status: 500 })
     }
 
-    // Agrupar usuarios por email
-    const usuariosPorEmail: Record<string, any[]> = {}
-
-    usuarios?.forEach((usuario) => {
-      if (!usuariosPorEmail[usuario.email]) {
-        usuariosPorEmail[usuario.email] = []
-      }
-      usuariosPorEmail[usuario.email].push(usuario)
-    })
-
-    // Encontrar emails con múltiples usuarios
-    const emailsConDuplicados: Record<string, any[]> = {}
-
-    Object.entries(usuariosPorEmail).forEach(([email, users]) => {
-      if (users.length > 1) {
-        emailsConDuplicados[email] = users
-      }
-    })
-
     return NextResponse.json({
-      totalUsuarios: usuarios?.length || 0,
-      emailsUnicos: Object.keys(usuariosPorEmail).length,
-      emailsConDuplicados,
-      hayDuplicados: Object.keys(emailsConDuplicados).length > 0,
+      success: true,
+      authUsers: authUsers,
+      dbUsers: dbUsers
     })
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
+  } catch (error) {
+    return NextResponse.json({
+      success: false,
+      message: "Server error",
+      error: error
+    }, { status: 500 })
   }
 }
 
