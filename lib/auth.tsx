@@ -29,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkUser = async () => {
       try {
         setLoading(true)
+        setError(null)
 
         // Obtener la sesión actual
         const {
@@ -36,46 +37,71 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           error: sessionError,
         } = await supabase.auth.getSession()
 
-        // Si hay un error o no hay sesión, simplemente establecer el estado como no autenticado
-        if (sessionError || !session) {
+        if (sessionError) {
+          console.error("Error de sesión:", sessionError)
+          throw sessionError
+        }
+
+        // Si no hay sesión, redirigir al login
+        if (!session) {
           setUser(null)
           setIsAuthenticated(false)
-          setLoading(false)
+          router.push('/login')
           return
         }
 
-        // Si hay una sesión, obtener los datos del usuario
+        // Si hay una sesión, obtener datos del usuario
         if (session?.user?.email) {
-          // Usuario autenticado, obtener datos de la tabla usuarios
           const { data: userData, error: userError } = await supabase
             .from("usuarios")
-            .select("*")
+            .select("*, clinicas(*)")
             .eq("email", session.user.email)
             .eq("activo", true)
             .single()
 
           if (userError) {
             console.error("Error al obtener datos del usuario:", userError)
-            setUser(null)
-            setIsAuthenticated(false)
-          } else if (userData) {
+            throw userError
+          }
+
+          if (!userData) {
+            // Si el usuario no existe en la base de datos, intentar crearlo
+            const { data: newUser, error: createError } = await supabase
+              .from("usuarios")
+              .insert([
+                {
+                  email: session.user.email,
+                  nombre: session.user.user_metadata?.full_name || session.user.email,
+                  rol: "admin",
+                  activo: true,
+                  clinica_id: "a0a80121-7ac0-4e1c-9cd4-8b8446119355" // ID actualizado de la clínica por defecto
+                }
+              ])
+              .select("*, clinicas(*)")
+              .single()
+
+            if (createError) {
+              console.error("Error al crear usuario:", createError)
+              throw createError
+            }
+
+            if (newUser) {
+              const appUser = dbToUsuario(newUser)
+              setUser(appUser)
+              setIsAuthenticated(true)
+            }
+          } else {
             const appUser = dbToUsuario(userData)
             setUser(appUser)
             setIsAuthenticated(true)
-          } else {
-            console.warn("Usuario autenticado pero no encontrado en la tabla usuarios")
-            setUser(null)
-            setIsAuthenticated(false)
           }
-        } else {
-          setUser(null)
-          setIsAuthenticated(false)
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Error al verificar usuario:", err)
-        setError("Error al verificar usuario")
+        setError(err.message)
         setUser(null)
         setIsAuthenticated(false)
+        router.push('/login')
       } finally {
         setLoading(false)
       }
@@ -83,13 +109,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     checkUser()
 
-    // Suscribirse a cambios en el estado de autenticación
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === "SIGNED_IN" && session) {
         checkUser()
       } else if (event === "SIGNED_OUT") {
         setUser(null)
         setIsAuthenticated(false)
+        router.push('/login')
       }
     })
 
@@ -98,7 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authListener.subscription.unsubscribe()
       }
     }
-  }, [supabase])
+  }, [supabase, router])
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
@@ -111,41 +137,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
       })
 
-      if (authError) {
-        throw authError
-      }
+      if (authError) throw authError
 
-      if (!authData.user) {
-        throw new Error("No se pudo autenticar")
-      }
+      if (!authData.user) throw new Error("No se pudo autenticar")
 
-      // Verificar si el usuario existe en la tabla usuarios
-      const { data: userData, error: userError } = await supabase
-        .from("usuarios")
-        .select("*")
-        .eq("email", email)
-        .eq("activo", true)
-        .single()
-
-      if (userError) {
-        throw userError
-      }
-
-      if (!userData) {
-        throw new Error("Usuario no encontrado en el sistema")
-      }
-
-      const appUser = dbToUsuario(userData)
-
-      setUser(appUser)
-      setIsAuthenticated(true)
-      router.push("/")
+      // La verificación del usuario en la base de datos se hará en el useEffect
       return true
     } catch (err: any) {
       console.error("Error al iniciar sesión:", err)
       setError(err.message || "Error al iniciar sesión")
-      setUser(null)
-      setIsAuthenticated(false)
       return false
     } finally {
       setLoading(false)
@@ -158,10 +158,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
       setUser(null)
       setIsAuthenticated(false)
-      router.push("/login")
-    } catch (err) {
+      router.push('/login')
+    } catch (err: any) {
       console.error("Error al cerrar sesión:", err)
-      setError("Error al cerrar sesión")
+      setError(err.message)
     } finally {
       setLoading(false)
     }
